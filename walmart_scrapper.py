@@ -27,6 +27,25 @@ for product in products:
         else "No link available"
     )
 
+    price_container = product.find("div", {"data-automation-id": "product-price"})
+
+    # Extract the whole and fractional parts of the price
+    if price_container:
+        price_whole = (
+            price_container.find("span", class_="f2").text
+            if price_container.find("span", class_="f2")
+            else "0"
+        )
+
+        # Find the span with a specific style (vertical-align: 0.75ex)
+        price_fraction_tag = price_container.find("span", style="vertical-align:0.75ex")
+        price_fraction = price_fraction_tag.text if price_fraction_tag else "00"
+
+        price = f"${price_whole}.{price_fraction}"
+    else:
+        price = "Price not available"
+
     # Print the extracted data
     print(f"Title: {title}")
     print(f"Link: {link}")
+    print(f"Price:{price}")
