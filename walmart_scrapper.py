@@ -24,7 +24,7 @@ for product in products:
     link = (
         "https://www.walmart.com" + product.a["href"]
         if product.a and product.a.get("href")
-        else "No link available"
+        else ""
     )
 
     price_container = product.find("div", {"data-automation-id": "product-price"})
@@ -43,9 +43,24 @@ for product in products:
 
         price = f"${price_whole}.{price_fraction}"
     else:
-        price = "Price not available"
+        price = ""
+
+    rating_tag = product.find("span", {"data-testid": "product-ratings"})
+
+    product_rating = (
+        rating_tag["data-value"] if rating_tag and rating_tag.get("data-value") else ""
+    )
+
+    reviewer_count = product.find("span", {"data-testid": "product-reviews"})
+    reviewer_count = (
+        reviewer_count["data-value"]
+        if reviewer_count and reviewer_count.get("data-value")
+        else ""
+    )
 
     # Print the extracted data
     print(f"Title: {title}")
     print(f"Link: {link}")
-    print(f"Price:{price}")
+    print(f"Price: {price}")
+    print(f"Product Rating: {product_rating}")
+    print(f"Reviewer Count: {reviewer_count}")
