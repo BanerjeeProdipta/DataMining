@@ -7,7 +7,7 @@ walmart_prefix = "https://www.walmart.com"
 
 
 def scrape_products(page_number, writer):
-    URL = f"https://www.walmart.com/search?query=groceries&page={page_number}&affinityOverride=store_led"
+    URL = f"https://www.walmart.com/search?query=laptop&page={page_number}&affinityOverride=store_led"
     headers = {
         "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36"
     }
@@ -15,7 +15,6 @@ def scrape_products(page_number, writer):
     page = requests.get(URL, headers=headers)
     soup = BeautifulSoup(page.content, "html.parser")
 
-    # TODO GET LAST PAGE NUMBER
     pagination_list_div = soup.find_all("li", class_="flex flex-column items-center")
     print("Pagination", pagination_list_div)
 
