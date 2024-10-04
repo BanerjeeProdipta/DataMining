@@ -8,7 +8,7 @@ headers = {
 
 response = requests.get(url, headers=headers)
 
-if response:
+if response.status_code == 200:
     soup = BeautifulSoup(response, "html.parser")
     products = soup.find_all("div", class_="a-section a-spacing-base a-text-center")
 
