@@ -6,99 +6,114 @@ import csv
 walmart_prefix = "https://www.walmart.com"
 
 
-def scrape_products(page_number, writer):
-    URL = f"https://www.walmart.com/search?query=laptop&page={page_number}&affinityOverride=store_led"
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36"
-    }
+def get_soup(url, headers):
+    """Get the BeautifulSoup object for a given URL."""
+    page = requests.get(url, headers=headers)
+    return BeautifulSoup(page.content, "html.parser")
 
-    page = requests.get(URL, headers=headers)
-    soup = BeautifulSoup(page.content, "html.parser")
 
-    pagination_list_div = soup.find_all("li", class_="flex flex-column items-center")
-    print("Pagination", pagination_list_div)
+def extract_product_title(product):
+    """Extract the title of the product."""
+    title_tag = product.find("span", {"data-automation-id": "product-title"})
+    return title_tag.text if title_tag else "No title available"
 
-    # Scrape product data
+
+def extract_product_link(product):
+    """Extract the product link."""
+    link_element = product.find(
+        "a", class_="w-100 h-100 z-1 hide-sibling-opacity absolute"
+    )
+    href_value = (
+        link_element["href"] if link_element and link_element.get("href") else ""
+    )
+
+    return (
+        href_value
+        if href_value.startswith(walmart_prefix)
+        else f"{walmart_prefix}{href_value}"
+    )
+
+
+def extract_product_price(product):
+    """Extract the product price."""
+    price_container = product.find("div", {"data-automation-id": "product-price"})
+
+    if price_container:
+        price_whole = (
+            price_container.find("span", class_="f2").text
+            if price_container.find("span", class_="f2")
+            else "0"
+        )
+        price_fraction_tag = price_container.find("span", style="vertical-align:0.75ex")
+        price_fraction = price_fraction_tag.text if price_fraction_tag else "00"
+        return f"${price_whole}.{price_fraction}"
+    return "Price not found"
+
+
+def extract_product_rating(product):
+    """Extract the product rating."""
+    rating_tag = product.find("span", {"data-testid": "product-ratings"})
+    return (
+        rating_tag["data-value"]
+        if rating_tag and rating_tag.get("data-value")
+        else "No rating"
+    )
+
+
+def extract_reviewer_count(product):
+    """Extract the number of reviewers."""
+    reviewer_count_tag = product.find("span", {"data-testid": "product-reviews"})
+    return (
+        reviewer_count_tag["data-value"]
+        if reviewer_count_tag and reviewer_count_tag.get("data-value")
+        else "No reviews"
+    )
+
+
+def extract_product_data(product):
+    """Extract all relevant product data."""
+    title = extract_product_title(product)
+    link = extract_product_link(product)
+    price = extract_product_price(product)
+    rating = extract_product_rating(product)
+    reviewer_count = extract_reviewer_count(product)
+
+    return [title, link, price, rating, reviewer_count]
+
+
+def scrape_page_products(page_number, headers):
+    """Scrape products from a specific page."""
+    url = f"https://www.walmart.com/search?query=laptop&page={page_number}&affinityOverride=store_led"
+    soup = get_soup(url, headers)
     product_result_div = soup.find("div", {"data-testid": "item-stack"})
+
     if product_result_div:
         products = product_result_div.find_all("div", {"role": "group"})
-
-        for product in products:
-            title_tag = product.find("span", {"data-automation-id": "product-title"})
-            title = title_tag.text if title_tag else "No title available"
-
-            link_element = product.find(
-                "a", class_="w-100 h-100 z-1 hide-sibling-opacity absolute"
-            )
-            href_value = (
-                link_element["href"]
-                if link_element and link_element.get("href")
-                else ""
-            )
-
-            # Ensure the link includes the Walmart prefix
-            link = (
-                (
-                    href_value
-                    if href_value.startswith(walmart_prefix)
-                    else f"{walmart_prefix}{href_value}"
-                )
-                if href_value
-                else ""
-            )
-
-            price_container = product.find(
-                "div", {"data-automation-id": "product-price"}
-            )
-
-            # Extract the whole and fractional parts of the price
-            if price_container:
-                price_whole = (
-                    price_container.find("span", class_="f2").text
-                    if price_container.find("span", class_="f2")
-                    else "0"
-                )
-
-                # Find the span with a specific style (vertical-align: 0.75ex)
-                price_fraction_tag = price_container.find(
-                    "span", style="vertical-align:0.75ex"
-                )
-                price_fraction = price_fraction_tag.text if price_fraction_tag else "00"
-
-                price = f"${price_whole}.{price_fraction}"
-            else:
-                price = "Price not found"
-
-            rating_tag = product.find("span", {"data-testid": "product-ratings"})
-            product_rating = (
-                rating_tag["data-value"]
-                if rating_tag and rating_tag.get("data-value")
-                else "No rating"
-            )
-
-            reviewer_count = product.find("span", {"data-testid": "product-reviews"})
-            reviewer_count = (
-                reviewer_count["data-value"]
-                if reviewer_count and reviewer_count.get("data-value")
-                else "No reviews"
-            )
-
-            # Write the extracted data to the CSV
-            writer.writerow([title, link, price, product_rating, reviewer_count])
-            print(f"Title: {title}")
-            print(f"Link: {link}")
-            print(f"Price: {price}")
-            print(f"Product Rating: {product_rating}")
-            print(f"Reviewer Count: {reviewer_count}\n")
+        return [extract_product_data(product) for product in products]
+    return []
 
 
-with open("walmart_groceries.csv", mode="w", newline="", encoding="utf-8") as file:
-    writer = csv.writer(file)
+def write_products_to_csv(filename, pages, headers):
+    """Scrape products from multiple pages and write to a CSV file."""
+    with open(filename, mode="w", newline="", encoding="utf-8") as file:
+        writer = csv.writer(file)
+        writer.writerow(["Title", "Link", "Price", "Product Rating", "Reviewer Count"])
 
-    writer.writerow(["Title", "Link", "Price", "Product Rating", "Reviewer Count"])
+        for page_number in range(1, pages + 1):
+            print(f"Scraping page {page_number}...\n")
+            products_data = scrape_page_products(page_number, headers)
 
-    for page in range(1, 11):
-        print(f"Scraping page {page}...\n")
-        scrape_products(page, writer)
+            for product_data in products_data:
+                writer.writerow(product_data)
+                print(product_data)
 
-print("Data has been successfully written to walmart_groceries.csv.")
+
+# User-agent headers
+headers = {
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36"
+}
+
+# Scrape 10 pages of Walmart products and write to CSV
+write_products_to_csv("walmart.csv", pages=10, headers=headers)
+
+print("Data has been successfully written to walmart.csv.")
