@@ -161,7 +161,7 @@ def main():
     driver = initialize_driver(url)
 
     # Click the 'Show more' button multiple times
-    max_clicks = 10
+    max_clicks = 50
     for _ in range(max_clicks):
         time.sleep(1)
         if not click_show_more_button(driver):
