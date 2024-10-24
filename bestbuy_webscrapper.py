@@ -15,9 +15,18 @@ def initialize_driver(url):
     driver.get(url)
     driver.set_window_size(1200, 900)
     print(driver.title)
-    assert "Best Buy Canada | Best Buy Canada" in driver.title
-    return driver
 
+    try:
+        WebDriverWait(driver, 10).until(
+            EC.title_contains("Best Buy")
+        )
+        print(driver.title)
+    except Exception:
+        print(f"Failed to load the page for URL: {url}")
+        driver.quit()
+        return None  # Return None if page is not valid
+    
+    return driver
 
 def click_show_more_button(driver):
     """Click the 'Show more' button to load additional products."""
@@ -96,14 +105,65 @@ def write_csv(dataframe, file_name):
     dataframe.to_csv(f"{file_name}.csv", index=False)
 
 
+def generate_recommendations(product_links):
+    """Generate recommended products for each product link."""
+    recommendations = []
+    for link in product_links:
+        driver = initialize_driver(link)
+        if driver is None:
+            recommendations.append({
+                "Product Link": link,
+                "Recommended Products": "Failed to load product page."
+            })
+            continue  # Skip to the next link
+
+        time.sleep(1)  # Allow the page to load
+        
+        # Scrape recommended products
+        html = driver.page_source
+        driver.quit()
+        
+        html_soup = BeautifulSoup(html, "html.parser")
+        recommended_products = extract_recommended_products(html_soup)
+        
+        recommendations.append({
+            "Product Link": link,
+            "Recommended Products": recommended_products,
+        })
+
+    recommendations_df = pd.DataFrame(recommendations)
+    write_csv(recommendations_df, "recommended_products")
+    print("Recommended products have been written to 'recommended_products.csv'.")
+
+
+def extract_recommended_products(soup):
+    """Extract recommended products from the 'You might also like' section."""
+    recommended = []
+    
+    # Find the "You might also like" section
+    recommendations_section = soup.find("h2", string="You might also like")
+    if recommendations_section:
+        # Locate the carousel container
+        carousel_container = recommendations_section.find_next("div", class_="recommendation-carousel-module_container__1n6ZA")
+        if carousel_container:
+            product_items = carousel_container.find_all("a", class_="product-card-module_link__3BgHL")
+            for item in product_items:
+                title = item.find("span", class_="product-title-module_title__3krMQ").text.strip()
+                link = f"https://www.bestbuy.ca{item['href']}"
+                price = item.find("span", class_="offer-price-module_price__2YR3q").text.strip()
+                recommended.append({"Title": title, "Link": link, "Price": price})
+    
+    return recommended if recommended else "No recommendations available"
+
+
 def main():
     url = "https://www.bestbuy.ca/en-ca/search?search=laptop"
     driver = initialize_driver(url)
 
     # Click the 'Show more' button multiple times
-    max_clicks = 5
+    max_clicks = 10
     for _ in range(max_clicks):
-        time.sleep(3)
+        time.sleep(1)
         if not click_show_more_button(driver):
             break
 
@@ -118,6 +178,8 @@ def main():
     write_csv(laptop_dataframe, "bestbuy")
     print("Web Scraping and CSV file writing complete!")
 
+    # Generate recommendations for the scraped products
+    generate_recommendations(laptop_dataframe["Product Link"].tolist())
 
 if __name__ == "__main__":
     main()
