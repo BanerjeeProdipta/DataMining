@@ -4,12 +4,26 @@ from twisted.internet import reactor
 from scrapy.utils.log import configure_logging
 from bs4 import BeautifulSoup
 
+search_terms = ["laptop", "smartphone", "headphones", "smartwatch", "camera", "speakers", "keyboard", "tablet", "tv", "mouse"]
+
 class AmazonSpider(scrapy.Spider):
     name = "amazon_spider"
 
     def start_requests(self):
-        base_url = "https://www.amazon.ca/s?k=laptop&crid=1E63C3THFEGDP&sprefix=laptop%2Caps%2C128&ref=nb_sb_noss_1"
-        for i in range(1, 151):
+
+        for search_term in search_terms:
+            base_url = f"https://www.amazon.ca/s?k={search_term}&crid=1E63C3THFEGDP&sprefix={search_term}%2Caps%2C128&ref=nb_sb_noss_1"
+            
+            # Scrape multiple pages for each search term (adjust range as needed)
+            for i in range(1, 5):  
+                url = f"{base_url}&page={i}"
+                yield scrapy.Request(
+                    url=url,
+                    callback=self.parse_search_results,
+                    headers={"User-Agent": "Mozilla/5.0"},
+                )
+        base_url = "https://www.amazon.ca/s?k=electronics&crid=1E63C3THFEGDP&sprefix=electronics%2Caps%2C128&ref=nb_sb_noss_1"
+        for i in range(1, 200):
             url = f"{base_url}&page={i}"
             yield scrapy.Request(
                 url=url,
@@ -40,11 +54,10 @@ class AmazonSpider(scrapy.Spider):
         price = self.extract_product_price(product)
         rating = self.extract_product_rating(product)
         num_reviews = self.extract_num_reviews(product)
-
         return {
-            "Product Title": title,
+            "Name": title,
             "Product Link": link,
-            "Product Price": price,
+            "Price": price,
             "Rating": rating,
             "Number of Reviews": num_reviews,
         }
@@ -86,39 +99,11 @@ class AmazonSpider(scrapy.Spider):
         soup = BeautifulSoup(response.text, "html.parser")
         print("Details: ", soup)
 
-        
-
-        # Extract 'Frequently Bought Together' items
-        fbt_sections = soup.find_all("div", class_="a-section a-spacing-none a-spacing-top-base _p13n-desktop-sims-fbt_fbt-desktop_plus-padding__21zgg")
-        frequently_bought = []
-        print("fbt_sections",fbt_sections)
-
-        # Assuming fbt_sections contains the correctly found elements from the soup
-        for fbt_item in fbt_sections:
-            # Find the link and title
-            fbt_link_tag = fbt_item.find("a", class_="a-link-normal")
-            
-            if fbt_link_tag:
-                # Construct the product link
-                fbt_link = "https://www.amazon.ca" + fbt_link_tag["href"]
-                
-                # Extract the product title from the <span> inside the link
-                fbt_product_title = fbt_link_tag.find("span", class_="a-size-base").get_text(strip=True)
-
-                # Extract the price from the price section
-                price_tag = fbt_item.find("span", class_="a-offscreen")
-                price = price_tag.get_text(strip=True) if price_tag else "Price not available"
-
-                frequently_bought.append({"Title": fbt_product_title, "Link": fbt_link, "Price": price})
-
-        product_data["Frequently Bought Together"] = ", ".join(frequently_bought) or "Not available"
-
-       
+        # Just yield the basic product details
         yield product_data
 
 
 def run_spider():
-    """Run the Scrapy spider and configure logging."""
     configure_logging({"LOG_FORMAT": "%(levelname)s: %(message)s"})
     runner = CrawlerRunner(
         settings={
@@ -127,12 +112,11 @@ def run_spider():
                     "format": "csv",
                     "encoding": "utf8",
                     "fields": [
-                        "Product Title",
-                        "Product Link",
-                        "Product Price",
+                        "Name",
+                        "Price",
                         "Rating",
                         "Number of Reviews",
-                        "Frequently Bought Together",
+                        "Product Link"
                     ],
                 },
             },
